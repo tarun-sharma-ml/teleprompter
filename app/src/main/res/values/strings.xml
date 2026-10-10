@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Teleprompter</string>
+    <string name="wpm_value">%1$d WPM</string>
+    <string name="size_value">%1$d pt</string>
+    <string name="grant_overlay">Grant \"Display over other apps\"</string>
+    <string name="overlay_granted">✓ Overlay permission granted</string>
+    <string name="start_teleprompter">Start Teleprompter</string>
+    <string name="stop_teleprompter">Stop Teleprompter</string>
+    <string name="version_label">Version %1$s</string>
+    <string name="check_updates">Check for updates</string>
+    <string name="update_downloading">Downloading update… %1$d%%</string>
+    <string name="update_installing">Waiting for install…</string>
+    <string name="update_not_configured">Updates are not set up yet: set REPO in Updater.kt.</string>
+    <string name="update_check_failed">Couldn\'t check for updates: %1$s</string>
+    <string name="update_up_to_date">You\'re up to date (version %1$s).</string>
+    <string name="update_allow_installs">Allow installs from this app, then tap Update again.</string>
+    <string name="update_failed">Update failed: %1$s</string>
+</resources>
