@@ -8,7 +8,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.telepromptertg"
+        applicationId = "io.github.tarunsharmaml.teleprompter"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

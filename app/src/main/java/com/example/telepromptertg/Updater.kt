@@ -16,7 +16,7 @@ import java.net.URL
 object Updater {
 
     /** Your public GitHub repository as "username/repository". Edit this before building. */
-    const val REPO = "YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
+    const val REPO = "tarun-sharma-ml/teleprompter"
 
     data class Release(val version: String, val apkUrl: String, val notes: String)
 
