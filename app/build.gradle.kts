@@ -4,12 +4,14 @@ plugins {
 }
 
 android {
-    namespace = "io.github.tarunsharmaml.teleprompter"
+    namespace = "com.example.telepromptertg"
+    //noinspection GradleDependency
     compileSdk = 34
 
     defaultConfig {
         applicationId = "io.github.tarunsharmaml.teleprompter"
         minSdk = 26
+        //noinspection OldTargetApi
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
