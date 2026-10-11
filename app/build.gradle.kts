@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.telepromptertg"
+    namespace = "io.github.tarunsharmaml.teleprompter"
     compileSdk = 34
 
     defaultConfig {
