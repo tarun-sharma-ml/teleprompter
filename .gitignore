@@ -13,3 +13,4 @@
 *.jks
 *.keystore
 /mnt/
+/app/release/
