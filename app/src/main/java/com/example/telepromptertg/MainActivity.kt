@@ -5,7 +5,10 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -59,6 +62,18 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    // Palette taken from the final frame of the startup animation (dark), with a light variant.
+    private val dark get() = prefs.darkMode
+    private val cBg get() = if (dark) 0xFF1E2327.toInt() else 0xFFF4F6F7.toInt()
+    private val cText get() = if (dark) Color.WHITE else 0xFF1E2327.toInt()
+    private val cMuted get() = if (dark) 0xFFAAB2B8.toInt() else 0xFF5C656B.toInt()
+    private val cOutline get() = if (dark) 0xFF4A5258.toInt() else 0xFFC5CCD1.toInt()
+    private val cField get() = if (dark) Color.argb(20, 255, 255, 255) else Color.argb(15, 0, 0, 0)
+    private val cHint = 0xFF7C858B.toInt()
+    private val cAmber = 0xFFFFB020.toInt()
+    private val cGreen = 0xFF2ECC9A.toInt()
+    private val cOnGreen = 0xFF0B0B0B.toInt()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         prefs = Prefs(this)
         setTheme(
@@ -69,6 +84,9 @@ class MainActivity : Activity() {
             },
         )
         super.onCreate(savedInstanceState)
+        window.setBackgroundDrawable(ColorDrawable(cBg))
+        window.statusBarColor = cBg
+        window.navigationBarColor = cBg
         currentPage = savedInstanceState?.getInt(STATE_PAGE, 0)?.coerceIn(0, 2) ?: 0
 
         if (Build.VERSION.SDK_INT >= 33) {
@@ -77,14 +95,37 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(8))
+            setPadding(dp(20), dp(24), dp(20), dp(12))
+            setBackgroundColor(cBg)
         }
-        root.addView(label("Teleprompter", 26f, true))
-        root.addView(label(getString(R.string.version_label, currentVersion()), 12f, false))
+        root.addView(
+            TextView(this).apply {
+                text = "Teleprompter"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(cText)
+                gravity = Gravity.CENTER
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
+        root.addView(
+            View(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(cAmber)
+                    cornerRadius = dp(2).toFloat()
+                }
+            },
+            LinearLayout.LayoutParams(dp(120), dp(4)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(12)
+                bottomMargin = dp(4)
+            },
+        )
 
         val scriptPage = page().apply {
-            addView(label("Read your script while recording videos with your camera app.", 14f, false))
-            addView(label("Script", 18f, true), spaced(16))
+            addView(label("Read your script while recording videos with your camera app.", 14f, false).apply {
+                setTextColor(cMuted)
+            })
         }
         scriptEdit = EditText(this).apply {
             hint = "Enter or paste your text / script here..."
@@ -93,11 +134,12 @@ class MainActivity : Activity() {
             maxLines = 16
             gravity = Gravity.TOP or Gravity.START
             setPadding(dp(12), dp(12), dp(12), dp(12))
+            setTextColor(cText)
+            setHintTextColor(cHint)
             background = GradientDrawable().apply {
-                val fill = if (prefs.darkMode) 255 else 0
-                setColor(Color.argb(20, fill, fill, fill))
-                setStroke(dp(1), Color.GRAY)
-                cornerRadius = dp(8).toFloat()
+                setColor(cField)
+                setStroke(dp(1), cOutline)
+                cornerRadius = dp(10).toFloat()
             }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -109,8 +151,8 @@ class MainActivity : Activity() {
                 override fun afterTextChanged(s: Editable?) {}
             })
         }
-        scriptPage.addView(scriptEdit, spaced(8))
-        startBtn = button(getString(R.string.start_teleprompter)) { toggleTeleprompter() }
+        scriptPage.addView(scriptEdit, spaced(16))
+        startBtn = button(getString(R.string.start_teleprompter), primary = true) { toggleTeleprompter() }
         scriptPage.addView(startBtn, spaced(16))
 
         val settingsPage = page()
@@ -144,7 +186,11 @@ class MainActivity : Activity() {
         settingsPage.addView(label("Appearance", 18f, true), spaced(24))
         settingsPage.addView(Switch(this).apply {
             setText(R.string.dark_mode)
+            setTextColor(cText)
             isChecked = prefs.darkMode
+            val checkedState = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
+            thumbTintList = ColorStateList(checkedState, intArrayOf(cGreen, 0xFF8F9699.toInt()))
+            trackTintList = ColorStateList(checkedState, intArrayOf(Color.argb(110, 46, 204, 154), cOutline))
             setOnCheckedChangeListener { _, enabled ->
                 prefs.darkMode = enabled
                 recreate()
@@ -153,6 +199,7 @@ class MainActivity : Activity() {
 
         settingsPage.addView(label("Permissions and updates", 18f, true), spaced(24))
         permBtn = Button(this).apply {
+            styleButton(this, primary = false)
             setOnClickListener {
                 startActivity(
                     Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
@@ -162,10 +209,15 @@ class MainActivity : Activity() {
         settingsPage.addView(permBtn, spaced(8))
 
         updateBtn = Button(this).apply {
+            styleButton(this, primary = false)
             setText(R.string.check_updates)
             setOnClickListener { checkForUpdates(manual = true) }
         }
         settingsPage.addView(updateBtn, spaced(8))
+        settingsPage.addView(
+            label(getString(R.string.version_label, currentVersion()), 12f, false).apply { setTextColor(cMuted) },
+            spaced(24),
+        )
 
         val helpPage = page()
         helpPage.addView(label("How to use", 18f, true))
@@ -206,7 +258,7 @@ class MainActivity : Activity() {
         root.addView(nav, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
-        ))
+        ).apply { topMargin = dp(8) })
         if (savedInstanceState == null) {
             showStartupAnimation(root)
         } else {
@@ -345,13 +397,10 @@ class MainActivity : Activity() {
 
         navButtons.forEachIndexed { i, button ->
             button.background = GradientDrawable().apply {
-                setColor(if (i == index) Color.rgb(46, 204, 154) else Color.TRANSPARENT)
+                setColor(if (i == index) cGreen else Color.TRANSPARENT)
                 cornerRadius = dp(12).toFloat()
             }
-            button.setTextColor(
-                if (i == index) Color.BLACK
-                else if (prefs.darkMode) Color.WHITE else Color.BLACK,
-            )
+            button.setTextColor(if (i == index) cOnGreen else cText)
         }
 
         pages.forEach { it.animate().cancel() }
@@ -558,18 +607,45 @@ class MainActivity : Activity() {
         t.text = text
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
         if (bold) t.setTypeface(t.typeface, android.graphics.Typeface.BOLD)
+        t.setTextColor(cText)
         t.setPadding(0, dp(2), 0, dp(2))
         return t
     }
 
-    private fun button(text: String, onClick: () -> Unit): Button {
+    private fun styleButton(b: Button, primary: Boolean) {
+        b.transformationMethod = null // no ALL CAPS (isAllCaps needs API 28)
+        b.stateListAnimator = null
+        b.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        b.minHeight = dp(48)
+        val enabledText = if (primary) cOnGreen else cText
+        b.setTextColor(
+            ColorStateList(
+                arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                intArrayOf(cMuted, enabledText),
+            ),
+        )
+        b.background = GradientDrawable().apply {
+            cornerRadius = dp(10).toFloat()
+            if (primary) {
+                setColor(cGreen)
+            } else {
+                setColor(cField)
+                setStroke(dp(1), cOutline)
+            }
+        }
+    }
+
+    private fun button(text: String, primary: Boolean = false, onClick: () -> Unit): Button {
         val b = Button(this)
+        styleButton(b, primary)
         b.text = text
         b.setOnClickListener { onClick() }
         return b
     }
 
-    private fun flexBtnParams() = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+    private fun flexBtnParams() = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+        setMargins(dp(4), 0, dp(4), 0)
+    }
 
     private fun spaced(topDp: Int): LinearLayout.LayoutParams {
         val lp = LinearLayout.LayoutParams(

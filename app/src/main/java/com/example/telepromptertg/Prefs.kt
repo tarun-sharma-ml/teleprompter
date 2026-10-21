@@ -25,7 +25,7 @@ class Prefs(context: Context) {
         }
 
     var darkMode: Boolean
-        get() = sp.getBoolean("dark_mode", false)
+        get() = sp.getBoolean("dark_mode", true)
         set(v) {
             sp.edit().putBoolean("dark_mode", v).apply()
         }
