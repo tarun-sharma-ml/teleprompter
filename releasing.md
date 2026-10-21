@@ -15,19 +15,36 @@ APK and Android shows its normal "Update this app?" screen.
 
 ## Every release
 
-1. In `app/build.gradle.kts` raise both numbers, for example:
-   `versionCode = 4` and `versionName = "1.3.1"`. The `versionName` must be greater than the
-   latest published release tag, and the APK's `versionName` must match the release tag; otherwise
-   the app will keep offering the same update.
+1. In `app/build.gradle.kts`, increment `versionCode` and set `versionName` to a version greater
+   than the version installed by users, for example `versionCode = 4` and `versionName = "1.3.1"`.
+   Keep `versionCode` increasing for every APK; Android uses it to reject downgrades.
 2. **Build → Generate Signed App Bundle / APK → APK**, choose your key, pick **release**.
    The file is `app/release/app-release.apk`.
 3. On GitHub: **Releases → Draft a new release**.
-    - Tag: `v1.3.1` (must match `versionName`; the leading `v` is optional)
+    - Tag: `v1.3.1` (must match the APK's `versionName`; the leading `v` is optional)
     - Attach the APK
     - Optional: write release notes (they are shown in the app's update dialog)
     - **Publish release** (drafts and pre-releases are ignored by the app)
 
 Anyone with the app will see the update next time they open it.
+
+## Version ordering and the v1.2/v1.3 clash
+
+The updater asks GitHub for the latest published release and compares its tag with the installed
+APK's `versionName`. It only offers the APK when the release version is numerically higher. It does
+not offer every intermediate release, and release tags do not change the version already installed
+on a phone.
+
+In the recent version clash, the phone reported **1.3**, while the project was changed to **1.2.1**.
+Because `1.2.1` is lower than `1.3`, it cannot update that phone; **v1.2 was skipped for the same
+reason**. The next update for a phone on 1.3 must be higher than 1.3, such as **v1.3.1**, with a
+higher Android `versionCode`.
+
+Deleting a release does not roll back installed apps. It removes that release from GitHub's latest
+release lookup, which can make the updater fall back to an older published tag. At the time this
+issue was checked, GitHub's latest-release endpoint returned **v1.1**. A phone already on 1.3 will
+not see an update from v1.1; publish a newer release (for example v1.3.1) with a matching signed
+APK instead. Do not delete a release to make an older version install as an update.
 
 ## Good to know
 

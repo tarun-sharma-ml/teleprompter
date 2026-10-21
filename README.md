@@ -40,7 +40,11 @@ Requires Android 8.0+ (API 26).
 
 ## Updates and releases
 
-See [RELEASING.md](RELEASING.md) for how to publish a new version.
+The updater compares the latest published GitHub release tag with the version installed on the
+phone. A release must be newer than the installed version: for example, **v1.2.1 cannot update
+v1.3**. Deleting a release does not downgrade phones and can make GitHub's latest-release lookup
+fall back to an older tag. See [releasing.md](releasing.md) for versioning guidance and the recent
+v1.2/v1.3 clash.
 
 ## Project layout
 
