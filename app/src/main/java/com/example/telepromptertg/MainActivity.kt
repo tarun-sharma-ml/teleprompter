@@ -21,6 +21,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 
@@ -41,8 +42,15 @@ class MainActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        setTheme(
+            if (prefs.darkMode) {
+                android.R.style.Theme_DeviceDefault_NoActionBar
+            } else {
+                android.R.style.Theme_DeviceDefault_Light_NoActionBar
+            },
+        )
+        super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -56,6 +64,15 @@ class MainActivity : Activity() {
         col.addView(label(getString(R.string.version_label, currentVersion()), 12f, false))
         col.addView(label("Read your script while recording videos with your camera app.", 14f, false))
 
+        col.addView(Switch(this).apply {
+            setText(R.string.dark_mode)
+            isChecked = prefs.darkMode
+            setOnCheckedChangeListener { _, enabled ->
+                prefs.darkMode = enabled
+                recreate()
+            }
+        }, spaced(12))
+
         col.addView(label("Script", 16f, true), spaced(16))
 
         scriptEdit = EditText(this).apply {
@@ -66,7 +83,8 @@ class MainActivity : Activity() {
             gravity = Gravity.TOP or Gravity.START
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = GradientDrawable().apply {
-                setColor(Color.argb(20, 0, 0, 0))
+                val fill = if (prefs.darkMode) 255 else 0
+                setColor(Color.argb(20, fill, fill, fill))
                 setStroke(dp(1), Color.GRAY)
                 cornerRadius = dp(8).toFloat()
             }

@@ -23,4 +23,10 @@ class Prefs(context: Context) {
         set(v) {
             sp.edit().putInt("size", v).apply()
         }
+
+    var darkMode: Boolean
+        get() = sp.getBoolean("dark_mode", false)
+        set(v) {
+            sp.edit().putBoolean("dark_mode", v).apply()
+        }
 }

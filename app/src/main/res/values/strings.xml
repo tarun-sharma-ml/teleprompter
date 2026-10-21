@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Teleprompter</string>
+    <string name="dark_mode">Dark mode</string>
     <string name="wpm_value">%1$d WPM</string>
     <string name="size_value">%1$d pt</string>
     <string name="grant_overlay">Grant \"Display over other apps\"</string>
