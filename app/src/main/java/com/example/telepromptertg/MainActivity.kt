@@ -236,7 +236,19 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
+    @Suppress("DEPRECATION")
     private fun showStartupAnimation(appContent: View) {
+        val decorView = window.decorView
+        val previousSystemUiVisibility = decorView.systemUiVisibility
+        decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+
         val host = FrameLayout(this)
         host.addView(
             appContent,
@@ -276,7 +288,10 @@ class MainActivity : Activity() {
             intro.animate()
                 .alpha(0f)
                 .setDuration(220)
-                .withEndAction { host.removeView(intro) }
+                .withEndAction {
+                    host.removeView(intro)
+                    decorView.systemUiVisibility = previousSystemUiVisibility
+                }
                 .start()
         }
 

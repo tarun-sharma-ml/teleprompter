@@ -6,7 +6,6 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.TypedValue
 import android.view.View
-import kotlin.math.min
 
 /** Draws the staged startup animation from the supplied HTML reference. */
 class StartupAnimationView(context: Context) : View(context) {
@@ -19,7 +18,6 @@ class StartupAnimationView(context: Context) : View(context) {
 
     private val density = resources.displayMetrics.density
     private val backgroundPaint = paint(COLOR_SCREEN)
-    private val bezelPaint = paint(COLOR_BEZEL)
     private val amberPaint = paint(COLOR_AMBER)
     private val mutedPaint = paint(COLOR_MUTED)
     private val whitePaint = paint(COLOR_WHITE)
@@ -42,32 +40,29 @@ class StartupAnimationView(context: Context) : View(context) {
     private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = COLOR_AMBER
         style = Paint.Style.STROKE
-        strokeWidth = dp(3f)
+        strokeWidth = 3f
     }
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = COLOR_OUTLINE
         style = Paint.Style.STROKE
-        strokeWidth = dp(1f)
+        strokeWidth = 1f
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val scale = min(width / dp(ART_WIDTH), height / dp(ART_HEIGHT))
-        val left = (width - dp(ART_WIDTH) * scale) / 2f
-        val top = (height - dp(ART_HEIGHT) * scale) / 2f
-
+        canvas.drawColor(COLOR_SCREEN)
+        if (width == 0 || height == 0) return
+        val scale = width / (ART_WIDTH * density)
+        val logicalHeight = height / (scale * density)
+        val top = (logicalHeight - ART_HEIGHT) / 2f
         canvas.save()
-        canvas.translate(left, top)
-        canvas.scale(scale, scale)
+        canvas.scale(scale * density, scale * density)
+        canvas.translate(0f, top)
         drawScreen(canvas, progress * DURATION_MS)
         canvas.restore()
     }
 
     private fun drawScreen(canvas: Canvas, time: Float) {
-        val screen = RectF(0f, 0f, ART_WIDTH, ART_HEIGHT)
-        canvas.drawRoundRect(screen, 24f, 24f, bezelPaint)
-        canvas.drawRoundRect(RectF(6f, 6f, 222f, 394f), 19f, 19f, backgroundPaint)
-
         drawOpeningMark(canvas, time)
         drawScriptLines(canvas, time)
         drawReadingMarkers(canvas, time)
@@ -77,17 +72,10 @@ class StartupAnimationView(context: Context) : View(context) {
 
     private fun drawOpeningMark(canvas: Canvas, time: Float) {
         val drawProgress = ease((time - 60f) / 600f)
-        if (drawProgress > 0f) {
-            val x = lerp(-156f, 64f, drawProgress)
-            val alpha = (drawProgress * 255).toInt()
-            amberPaint.alpha = alpha
-            canvas.drawRoundRect(x, 150f, x + 100f, 166f, 8f, 8f, amberPaint)
-            amberPaint.alpha = 255
-        }
 
         repeat(4) { index ->
             val start = 500f + index * 150f
-            val appear = ease((time - start) / 350f)
+            val appear = ease((time - start) / 350f) * (1f - ease((time - 2200f) / 320f))
             if (appear <= 0f) return@repeat
             val y = 180f + index * 16f - (1f - appear) * 16f
             val opacity = floatArrayOf(0.9f, 0.65f, 0.45f, 0.25f)[index]
@@ -96,11 +84,30 @@ class StartupAnimationView(context: Context) : View(context) {
         }
         whitePaint.alpha = 255
 
+        val settle = ease((time - 2200f) / 700f)
+        val titleSettle = ease((time - 3900f) / 500f)
+        val startX = lerp(-156f, 64f, drawProgress)
+        val scriptX = lerp(64f, 39f, settle)
+        val headerX = lerp(39f, 59f, titleSettle)
+        val x = lerp(scriptX, headerX, titleSettle)
+        val y = lerp(lerp(150f, 192f, settle), 60f, titleSettle)
+        val width = lerp(lerp(100f, 150f, settle), 110f, titleSettle)
+        val height = lerp(lerp(16f, 16f, settle), 4f, titleSettle)
+        val alpha = (drawProgress * 255).toInt()
+        if (time < 2200f) {
+            amberPaint.alpha = alpha
+            canvas.drawRoundRect(startX, 150f, startX + 100f, 166f, 8f, 8f, amberPaint)
+        } else {
+            amberPaint.alpha = 255
+            canvas.drawRoundRect(x, y, x + width, y + height, height / 2f, height / 2f, amberPaint)
+        }
+        amberPaint.alpha = 255
+
         val pulse = ((time - 1400f) / 800f).coerceIn(0f, 1f)
         if (pulse > 0f && pulse < 1f) {
             ringPaint.alpha = ((1f - pulse) * 230f).toInt()
             val radius = lerp(27.5f, 104.5f, ease(pulse))
-            canvas.drawCircle(114f, 193f, radius, ringPaint)
+            canvas.drawCircle(114f, 158f, radius, ringPaint)
             ringPaint.alpha = 255
         }
     }
@@ -165,12 +172,6 @@ class StartupAnimationView(context: Context) : View(context) {
     private fun drawSettledHeader(canvas: Canvas, time: Float) {
         val settle = ease((time - 3900f) / 500f)
         if (settle <= 0f) return
-
-        val x = lerp(39f, 59f, settle)
-        val y = lerp(192f, 60f, settle)
-        val width = lerp(150f, 110f, settle)
-        val height = lerp(16f, 4f, settle)
-        canvas.drawRoundRect(x, y, x + width, y + height, height / 2f, height / 2f, amberPaint)
 
         val titleAlpha = ease((time - 4300f) / 450f)
         if (titleAlpha > 0f) {
@@ -252,8 +253,6 @@ class StartupAnimationView(context: Context) : View(context) {
     }
 
     private fun lerp(start: Float, end: Float, fraction: Float) = start + (end - start) * fraction
-
-    private fun dp(value: Float) = value * density
 
     private fun sp(value: Float) =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics) / density
