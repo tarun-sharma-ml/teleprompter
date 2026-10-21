@@ -15,8 +15,13 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.TypedValue
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -25,6 +30,7 @@ import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.abs
 
 class MainActivity : Activity() {
 
@@ -41,6 +47,8 @@ class MainActivity : Activity() {
     private lateinit var updateBtn: Button
     private lateinit var pages: List<ScrollView>
     private lateinit var navButtons: List<Button>
+    private lateinit var content: FrameLayout
+    private lateinit var swipeDetector: GestureDetector
     private var currentPage = 0
     private var downloading = false
 
@@ -175,7 +183,7 @@ class MainActivity : Activity() {
         pages = listOf(scriptPage, settingsPage, helpPage).map { pageContent ->
             ScrollView(this).apply { addView(pageContent) }
         }
-        val content = FrameLayout(this)
+        content = FrameLayout(this)
         pages.forEach { content.addView(it, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -198,7 +206,21 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
         setContentView(root)
-        selectPage(currentPage)
+        selectPage(currentPage, animate = false)
+
+        swipeDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                if (e1 == null) return false
+                val dx = e2.x - e1.x
+                val dy = e2.y - e1.y
+                // Only a clearly horizontal, quick swipe counts.
+                if (abs(dx) < dp(80) || abs(dx) < abs(dy) * 1.8f || abs(velocityX) < 700f) return false
+                if (startedInEditor(e1)) return false
+                if (dx < 0 && currentPage < pages.size - 1) selectPage(currentPage + 1)
+                else if (dx > 0 && currentPage > 0) selectPage(currentPage - 1)
+                return false
+            }
+        })
 
         checkForUpdates(manual = false)
     }
@@ -208,14 +230,40 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
+    /** Watch every touch for a left/right swipe, without stealing it from the views underneath. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        swipeDetector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    /** A swipe that starts inside the script box (while typing) should move the cursor, not the page. */
+    private fun startedInEditor(e: MotionEvent): Boolean {
+        if (currentPage != 0 || !scriptEdit.hasFocus()) return false
+        val r = android.graphics.Rect()
+        scriptEdit.getGlobalVisibleRect(r)
+        return r.contains(e.rawX.toInt(), e.rawY.toInt())
+    }
+
     private fun page() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(4), dp(16), dp(4), dp(16))
     }
 
-    private fun selectPage(index: Int) {
+    private fun resetPage(page: View) {
+        page.translationX = 0f
+        page.alpha = 1f
+        page.scaleX = 1f
+        page.scaleY = 1f
+    }
+
+    /**
+     * Shows page [index]. When [animate] is true the new page slides in from the side it lives on
+     * (right when going forward, left when going back) while the old page slides out and fades.
+     */
+    private fun selectPage(index: Int, animate: Boolean = true) {
+        val previous = currentPage
         currentPage = index
-        pages.forEachIndexed { i, page -> page.visibility = if (i == index) ViewGroup.VISIBLE else ViewGroup.GONE }
+
         navButtons.forEachIndexed { i, button ->
             button.background = GradientDrawable().apply {
                 setColor(if (i == index) Color.rgb(46, 204, 154) else Color.TRANSPARENT)
@@ -226,6 +274,58 @@ class MainActivity : Activity() {
                 else if (prefs.darkMode) Color.WHITE else Color.BLACK,
             )
         }
+
+        pages.forEach { it.animate().cancel() }
+
+        if (!animate || previous == index) {
+            pages.forEachIndexed { i, page ->
+                resetPage(page)
+                page.visibility = if (i == index) ViewGroup.VISIBLE else ViewGroup.GONE
+            }
+            return
+        }
+
+        val direction = if (index > previous) 1 else -1
+        val distance = (if (content.width > 0) content.width else resources.displayMetrics.widthPixels).toFloat()
+        val outgoing = pages[previous]
+        val incoming = pages[index]
+
+        // Anything not involved in this move stays hidden (covers fast repeated taps).
+        pages.forEachIndexed { i, page ->
+            if (i != index && i != previous) {
+                resetPage(page)
+                page.visibility = ViewGroup.GONE
+            }
+        }
+
+        resetPage(outgoing)
+        outgoing.visibility = ViewGroup.VISIBLE
+        outgoing.animate()
+            .translationX(-direction * distance * 0.4f)
+            .alpha(0f)
+            .scaleX(0.94f)
+            .scaleY(0.94f)
+            .setDuration(260)
+            .setInterpolator(AccelerateInterpolator(1.2f))
+            .withEndAction {
+                outgoing.visibility = ViewGroup.GONE
+                resetPage(outgoing)
+            }
+            .start()
+
+        incoming.visibility = ViewGroup.VISIBLE
+        incoming.translationX = direction * distance
+        incoming.alpha = 0f
+        incoming.scaleX = 0.94f
+        incoming.scaleY = 0.94f
+        incoming.animate()
+            .translationX(0f)
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(340)
+            .setInterpolator(DecelerateInterpolator(1.8f))
+            .start()
     }
 
     override fun onResume() {
