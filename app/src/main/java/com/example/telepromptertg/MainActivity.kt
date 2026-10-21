@@ -3,6 +3,7 @@ package com.example.telepromptertg
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -22,6 +23,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -205,7 +207,11 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ))
-        setContentView(root)
+        if (savedInstanceState == null) {
+            showStartupAnimation(root)
+        } else {
+            setContentView(root)
+        }
         selectPage(currentPage, animate = false)
 
         swipeDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -228,6 +234,64 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt(STATE_PAGE, currentPage)
         super.onSaveInstanceState(outState)
+    }
+
+    private fun showStartupAnimation(appContent: View) {
+        val host = FrameLayout(this)
+        host.addView(
+            appContent,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        val intro = FrameLayout(this).apply {
+            setBackgroundColor(Color.rgb(27, 33, 35))
+            isClickable = true
+            isFocusable = true
+        }
+        val animationView = StartupAnimationView(this)
+        intro.addView(
+            animationView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        host.addView(
+            intro,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        setContentView(host)
+
+        var dismissed = false
+        lateinit var animator: ValueAnimator
+        fun dismiss() {
+            if (dismissed) return
+            dismissed = true
+            animator.cancel()
+            intro.animate()
+                .alpha(0f)
+                .setDuration(220)
+                .withEndAction { host.removeView(intro) }
+                .start()
+        }
+
+        intro.setOnClickListener { dismiss() }
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 5900
+            interpolator = LinearInterpolator()
+            addUpdateListener { animationView.progress = it.animatedValue as Float }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    dismiss()
+                }
+            })
+            start()
+        }
     }
 
     /** Watch every touch for a left/right swipe, without stealing it from the views underneath. */

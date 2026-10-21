@@ -9,6 +9,7 @@ A floating teleprompter that sits **on top of your phone's camera app**. Tap *St
 - Drag the small bar at the top to move the panel; drag on the text to scrub
 - In-app editor to type or paste your script
 - Separate Script, Settings, and Help screens for easier navigation
+- Animated startup intro: the reading line draws in, pulses, reveals script markers, then settles into the app screen
 - Light and dark app themes, with your choice saved between launches
 - Adjustable scrolling speed (WPM) and font size, applied live to a running panel
 - Built-in updater: checks GitHub Releases and installs new versions from inside the app
