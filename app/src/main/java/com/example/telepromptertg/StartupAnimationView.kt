@@ -4,7 +4,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
-import android.util.TypedValue
+import android.graphics.Path
+import android.view.animation.PathInterpolator
 import android.view.View
 
 /** Draws the staged startup animation from the supplied HTML reference. */
@@ -71,59 +72,59 @@ class StartupAnimationView(context: Context) : View(context) {
     }
 
     private fun drawOpeningMark(canvas: Canvas, time: Float) {
-        val drawProgress = ease((time - 60f) / 600f)
+        // Glow ring is centred on the screen (HTML: left 59, top 138, 110x110) and sits behind the T.
+        val pulse = ((time - 1400f) / 800f).coerceIn(0f, 1f)
+        if (pulse > 0f && pulse < 1f) {
+            val p = easeOut(pulse)
+            ringPaint.alpha = (lerp(0.9f, 0f, p) * 255).toInt()
+            ringPaint.strokeWidth = 3f * lerp(0.5f, 1.9f, p)
+            canvas.drawCircle(114f, 193f, lerp(27.5f, 104.5f, p), ringPaint)
+        }
 
+        // T stem: four short bars that drop in, then slide away when the script appears.
         repeat(4) { index ->
             val start = 500f + index * 150f
-            val appear = ease((time - start) / 350f) * (1f - ease((time - 2200f) / 320f))
-            if (appear <= 0f) return@repeat
-            val y = 180f + index * 16f - (1f - appear) * 16f
+            val appear = ease((time - start) / 350f)
+            val leave = ease((time - 2200f) / 350f)
+            val visible = appear * (1f - leave)
+            if (visible <= 0f) return@repeat
+            val width = lerp(24f * 0.2f, 24f, appear)
+            val y = 180f + index * 16f + (1f - appear) * -16f + leave * 10f
             val opacity = floatArrayOf(0.9f, 0.65f, 0.45f, 0.25f)[index]
-            whitePaint.alpha = (appear * opacity * 255).toInt()
-            canvas.drawRoundRect(102f, y, 126f, y + 8f, 4f, 4f, whitePaint)
+            whitePaint.alpha = (visible * opacity * 255).toInt()
+            canvas.drawRoundRect(114f - width / 2f, y, 114f + width / 2f, y + 8f, 4f, 4f, whitePaint)
         }
         whitePaint.alpha = 255
 
-        val settle = ease((time - 2200f) / 700f)
-        val titleSettle = ease((time - 3900f) / 500f)
-        val startX = lerp(-156f, 64f, drawProgress)
-        val scriptX = lerp(64f, 39f, settle)
-        val headerX = lerp(39f, 59f, titleSettle)
-        val x = lerp(scriptX, headerX, titleSettle)
-        val y = lerp(lerp(150f, 192f, settle), 60f, titleSettle)
-        val width = lerp(lerp(100f, 150f, settle), 110f, titleSettle)
-        val height = lerp(lerp(16f, 16f, settle), 4f, titleSettle)
-        val alpha = (drawProgress * 255).toInt()
-        if (time < 2200f) {
-            amberPaint.alpha = alpha
-            canvas.drawRoundRect(startX, 150f, startX + 100f, 166f, 8f, 8f, amberPaint)
-        } else {
-            amberPaint.alpha = 255
-            canvas.drawRoundRect(x, y, x + width, y + height, height / 2f, height / 2f, amberPaint)
-        }
-        amberPaint.alpha = 255
+        // Amber bar: slides in (0.6s), drops to the centre line (2200), widens (2800), becomes the header rule (3900).
+        val slide = easeOut((time - 60f) / 600f)
+        val fadeIn = ((time - 60f) / 400f).coerceIn(0f, 1f)
+        val drop = ease((time - 2200f) / 500f)
+        val widen = ease((time - 2800f) / 500f)
+        val settle = ease((time - 3900f) / 500f)
 
-        val pulse = ((time - 1400f) / 800f).coerceIn(0f, 1f)
-        if (pulse > 0f && pulse < 1f) {
-            ringPaint.alpha = ((1f - pulse) * 230f).toInt()
-            val radius = lerp(27.5f, 104.5f, ease(pulse))
-            canvas.drawCircle(114f, 158f, radius, ringPaint)
-            ringPaint.alpha = 255
-        }
+        val x = lerp(lerp(lerp(-156f, 64f, slide), 39f, widen), 59f, settle)
+        val width = lerp(lerp(100f, 150f, widen), 110f, settle)
+        val y = lerp(lerp(150f, 192f, drop), 60f, settle)
+        val height = lerp(16f, 4f, settle)
+        amberPaint.alpha = (fadeIn * 255).toInt()
+        canvas.drawRoundRect(x, y, x + width, y + height, height / 2f, height / 2f, amberPaint)
+        amberPaint.alpha = 255
     }
 
     private fun drawScriptLines(canvas: Canvas, time: Float) {
-        val reveal = ease((time - 2200f) / 900f)
-        if (reveal <= 0f) return
+        val reveal = easeOut((time - 2200f) / 900f)
+        val fadeIn = ((time - 2200f) / 500f).coerceIn(0f, 1f)
+        if (fadeIn <= 0f) return
 
-        val fade = 1f - ease((time - 3900f) / 300f)
+        val fade = fadeIn * (1f - ease((time - 3900f) / 500f))
         val lineY = floatArrayOf(-89f, -61f, -33f, 23f, 51f, 79f)
         val lineWidth = floatArrayOf(56f, 70f, 104f, 104f, 70f, 56f)
         val alpha = intArrayOf(38, 77, 153, 153, 77, 38)
         lineY.forEachIndexed { index, offset ->
             val y = 200f + offset + (1f - reveal) * 170f
             whitePaint.alpha = (alpha[index] * fade).toInt()
-            val barWidth = lineWidth[index] * reveal
+            val barWidth = lineWidth[index]
             canvas.drawRoundRect(
                 114f - barWidth / 2f,
                 y,
@@ -138,31 +139,28 @@ class StartupAnimationView(context: Context) : View(context) {
     }
 
     private fun drawReadingMarkers(canvas: Canvas, time: Float) {
-        val grow = ease((time - 2800f) / 450f)
-        val fade = 1f - ease((time - 3900f) / 300f)
-        val alpha = (grow * fade * 255).toInt()
-        if (alpha == 0) return
+        val slide = easeOut((time - 2800f) / 450f)
+        val fadeIn = ((time - 2800f) / 300f).coerceIn(0f, 1f)
+        val fadeOut = 1f - ((time - 3900f) / 300f).coerceIn(0f, 1f)
+        val alpha = (fadeIn * fadeOut * 255).toInt()
+        if (alpha <= 0) return
 
-        val travel = (1f - grow) * 60f
-        val markerY = 191f
+        val cy = 200f
+        val leftX = lerp(-20f, 20f, slide)   // base edge of the left arrow
+        val rightX = lerp(235f, 195f, slide) // tip of the right arrow
         amberPaint.alpha = alpha
-        val left = 20f - travel
-        val right = 208f + travel
-        val markerHeight = 18f * grow
-        val markerWidth = 13f * grow
-        val halfHeight = markerHeight / 2f
 
-        val leftMarker = android.graphics.Path().apply {
-            moveTo(left, markerY)
-            lineTo(left - markerWidth, markerY - halfHeight)
-            lineTo(left - markerWidth, markerY + halfHeight)
+        val leftMarker = Path().apply {
+            moveTo(leftX, cy - 9f)
+            lineTo(leftX + 13f, cy)
+            lineTo(leftX, cy + 9f)
             close()
         }
         canvas.drawPath(leftMarker, amberPaint)
-        val rightMarker = android.graphics.Path().apply {
-            moveTo(right, markerY)
-            lineTo(right + markerWidth, markerY - halfHeight)
-            lineTo(right + markerWidth, markerY + halfHeight)
+        val rightMarker = Path().apply {
+            moveTo(rightX + 13f, cy - 9f)
+            lineTo(rightX, cy)
+            lineTo(rightX + 13f, cy + 9f)
             close()
         }
         canvas.drawPath(rightMarker, amberPaint)
@@ -176,7 +174,7 @@ class StartupAnimationView(context: Context) : View(context) {
         val titleAlpha = ease((time - 4300f) / 450f)
         if (titleAlpha > 0f) {
             titlePaint.alpha = (titleAlpha * 255).toInt()
-            canvas.drawText("Teleprompter", 114f, 43f, titlePaint)
+            drawCentered(canvas, "Teleprompter", 114f, 43f + (1f - titleAlpha) * 8f, titlePaint)
             titlePaint.alpha = 255
         }
     }
@@ -186,16 +184,17 @@ class StartupAnimationView(context: Context) : View(context) {
         if (reveal <= 0f) return
 
         descriptionPaint.alpha = (reveal * 255).toInt()
-        canvas.drawText("Read your script while recording", 16f, 96f, descriptionPaint)
-        canvas.drawText("videos with your camera app.", 16f, 109f, descriptionPaint)
+        val rise = (1f - reveal) * 14f
+        canvas.drawText("Read your script while recording", 16f, 96f + rise, descriptionPaint)
+        canvas.drawText("videos with your camera app.", 16f, 109f + rise, descriptionPaint)
 
         val editorAlpha = ease((time - 4950f) / 450f)
         if (editorAlpha > 0f) {
             outlinePaint.alpha = (editorAlpha * 255).toInt()
-            backgroundPaint.alpha = (editorAlpha * 20).toInt()
-            canvas.drawRoundRect(RectF(16f, 124f, 212f, 244f), 10f, 10f, backgroundPaint)
+            whitePaint.alpha = (editorAlpha * 20).toInt()
+            canvas.drawRoundRect(RectF(16f, 124f, 212f, 244f), 10f, 10f, whitePaint)
+            whitePaint.alpha = 255
             canvas.drawRoundRect(RectF(16f, 124f, 212f, 244f), 10f, 10f, outlinePaint)
-            backgroundPaint.alpha = 255
             hintPaint.alpha = (editorAlpha * 255).toInt()
             canvas.drawText("Enter or paste your text / script", 26f, 143f, hintPaint)
             canvas.drawText("here...", 26f, 154f, hintPaint)
@@ -252,10 +251,15 @@ class StartupAnimationView(context: Context) : View(context) {
         return t * t * (3f - 2f * t)
     }
 
+    private val easeOutInterpolator = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+
+    private fun easeOut(value: Float) = easeOutInterpolator.getInterpolation(value.coerceIn(0f, 1f))
+
     private fun lerp(start: Float, end: Float, fraction: Float) = start + (end - start) * fraction
 
-    private fun sp(value: Float) =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics) / density
+    // Art is drawn in a fixed 228x400 space that is scaled to the screen, so text must not also
+    // follow the user's system font scale (that made the layout drift from the design).
+    private fun sp(value: Float) = value
 
     private companion object {
         const val ART_WIDTH = 228f
