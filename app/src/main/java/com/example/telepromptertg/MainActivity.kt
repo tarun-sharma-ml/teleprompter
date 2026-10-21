@@ -19,6 +19,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
@@ -27,6 +28,10 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
 
+    companion object {
+        private const val STATE_PAGE = "selected_page"
+    }
+
     private lateinit var prefs: Prefs
     private lateinit var scriptEdit: EditText
     private lateinit var wpmValueTv: TextView
@@ -34,6 +39,9 @@ class MainActivity : Activity() {
     private lateinit var permBtn: Button
     private lateinit var startBtn: Button
     private lateinit var updateBtn: Button
+    private lateinit var pages: List<ScrollView>
+    private lateinit var navButtons: List<Button>
+    private var currentPage = 0
     private var downloading = false
 
     private val handler = Handler(Looper.getMainLooper())
@@ -51,35 +59,28 @@ class MainActivity : Activity() {
             },
         )
         super.onCreate(savedInstanceState)
+        currentPage = savedInstanceState?.getInt(STATE_PAGE, 0)?.coerceIn(0, 2) ?: 0
 
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
 
-        val col = LinearLayout(this)
-        col.orientation = LinearLayout.VERTICAL
-        col.setPadding(dp(20), dp(24), dp(20), dp(24))
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(8))
+        }
+        root.addView(label("Teleprompter", 26f, true))
+        root.addView(label(getString(R.string.version_label, currentVersion()), 12f, false))
 
-        col.addView(label("Teleprompter", 26f, true))
-        col.addView(label(getString(R.string.version_label, currentVersion()), 12f, false))
-        col.addView(label("Read your script while recording videos with your camera app.", 14f, false))
-
-        col.addView(Switch(this).apply {
-            setText(R.string.dark_mode)
-            isChecked = prefs.darkMode
-            setOnCheckedChangeListener { _, enabled ->
-                prefs.darkMode = enabled
-                recreate()
-            }
-        }, spaced(12))
-
-        col.addView(label("Script", 16f, true), spaced(16))
-
+        val scriptPage = page().apply {
+            addView(label("Read your script while recording videos with your camera app.", 14f, false))
+            addView(label("Script", 18f, true), spaced(16))
+        }
         scriptEdit = EditText(this).apply {
             hint = "Enter or paste your text / script here..."
             setText(prefs.text)
-            minLines = 6
-            maxLines = 12
+            minLines = 8
+            maxLines = 16
             gravity = Gravity.TOP or Gravity.START
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = GradientDrawable().apply {
@@ -98,10 +99,13 @@ class MainActivity : Activity() {
                 override fun afterTextChanged(s: Editable?) {}
             })
         }
-        col.addView(scriptEdit, spaced(6))
+        scriptPage.addView(scriptEdit, spaced(8))
+        startBtn = button(getString(R.string.start_teleprompter)) { toggleTeleprompter() }
+        scriptPage.addView(startBtn, spaced(16))
 
-        // Speed settings
-        col.addView(label("Scroll Speed (WPM)", 16f, true), spaced(16))
+        val settingsPage = page()
+        settingsPage.addView(label("Playback", 18f, true))
+        settingsPage.addView(label("Scroll Speed (WPM)", 16f, true), spaced(16))
         val wpmRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val wpmMinusBtn = button("−10") { changeWpm(-10) }
         wpmValueTv = label(getString(R.string.wpm_value, prefs.wpm), 16f, true).apply {
@@ -112,10 +116,9 @@ class MainActivity : Activity() {
         wpmRow.addView(wpmMinusBtn, flexBtnParams())
         wpmRow.addView(wpmValueTv)
         wpmRow.addView(wpmPlusBtn, flexBtnParams())
-        col.addView(wpmRow, spaced(6))
+        settingsPage.addView(wpmRow, spaced(6))
 
-        // Font Size settings
-        col.addView(label("Font Size", 16f, true), spaced(16))
+        settingsPage.addView(label("Font Size", 16f, true), spaced(16))
         val sizeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val sizeMinusBtn = button("A−") { changeSize(-2) }
         sizeValueTv = label(getString(R.string.size_value, prefs.size), 16f, true).apply {
@@ -126,9 +129,19 @@ class MainActivity : Activity() {
         sizeRow.addView(sizeMinusBtn, flexBtnParams())
         sizeRow.addView(sizeValueTv)
         sizeRow.addView(sizePlusBtn, flexBtnParams())
-        col.addView(sizeRow, spaced(6))
+        settingsPage.addView(sizeRow, spaced(6))
 
-        // Permissions button
+        settingsPage.addView(label("Appearance", 18f, true), spaced(24))
+        settingsPage.addView(Switch(this).apply {
+            setText(R.string.dark_mode)
+            isChecked = prefs.darkMode
+            setOnCheckedChangeListener { _, enabled ->
+                prefs.darkMode = enabled
+                recreate()
+            }
+        }, spaced(8))
+
+        settingsPage.addView(label("Permissions and updates", 18f, true), spaced(24))
         permBtn = Button(this).apply {
             setOnClickListener {
                 startActivity(
@@ -136,39 +149,83 @@ class MainActivity : Activity() {
                 )
             }
         }
-        col.addView(permBtn, spaced(20))
-
-        // Start/Stop Teleprompter button
-        startBtn = Button(this).apply {
-            setOnClickListener { toggleTeleprompter() }
-        }
-        col.addView(startBtn, spaced(12))
+        settingsPage.addView(permBtn, spaced(8))
 
         updateBtn = Button(this).apply {
             setText(R.string.check_updates)
             setOnClickListener { checkForUpdates(manual = true) }
         }
-        col.addView(updateBtn, spaced(12))
+        settingsPage.addView(updateBtn, spaced(8))
 
-        col.addView(
+        val helpPage = page()
+        helpPage.addView(label("How to use", 18f, true))
+        helpPage.addView(
             label(
-                "How to use:\n" +
-                        "1. Allow \"Display over other apps\" above.\n" +
-                        "2. Type or paste your speech into the script box.\n" +
-                        "3. Tap Start Teleprompter.\n" +
-                        "4. Open your camera app — the floating script appears over the screen.\n" +
-                        "5. Drag the top handle to move the overlay; tap Play to scroll.",
+                "1. Open Settings and allow \"Display over other apps\".\n\n" +
+                        "2. Return to Script and type or paste your speech.\n\n" +
+                        "3. Tap Start Teleprompter. The floating panel appears over your screen.\n\n" +
+                        "4. Open your camera app. Drag the panel's top handle to move it and tap Play to scroll.\n\n" +
+                        "5. Change scrolling speed, font size, or theme from Settings.",
                 14f,
                 false,
             ),
-            spaced(20),
+            spaced(12),
         )
 
-        val sv = ScrollView(this)
-        sv.addView(col)
-        setContentView(sv)
+        pages = listOf(scriptPage, settingsPage, helpPage).map { pageContent ->
+            ScrollView(this).apply { addView(pageContent) }
+        }
+        val content = FrameLayout(this)
+        pages.forEach { content.addView(it, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        )) }
+        root.addView(content, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f,
+        ))
+
+        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        navButtons = listOf(
+            button(getString(R.string.nav_script)) { selectPage(0) },
+            button(getString(R.string.nav_settings)) { selectPage(1) },
+            button(getString(R.string.nav_help)) { selectPage(2) },
+        )
+        navButtons.forEach { nav.addView(it, flexBtnParams()) }
+        root.addView(nav, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        setContentView(root)
+        selectPage(currentPage)
 
         checkForUpdates(manual = false)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt(STATE_PAGE, currentPage)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun page() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(4), dp(16), dp(4), dp(16))
+    }
+
+    private fun selectPage(index: Int) {
+        currentPage = index
+        pages.forEachIndexed { i, page -> page.visibility = if (i == index) ViewGroup.VISIBLE else ViewGroup.GONE }
+        navButtons.forEachIndexed { i, button ->
+            button.background = GradientDrawable().apply {
+                setColor(if (i == index) Color.rgb(46, 204, 154) else Color.TRANSPARENT)
+                cornerRadius = dp(12).toFloat()
+            }
+            button.setTextColor(
+                if (i == index) Color.BLACK
+                else if (prefs.darkMode) Color.WHITE else Color.BLACK,
+            )
+        }
     }
 
     override fun onResume() {
