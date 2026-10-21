@@ -16,13 +16,13 @@ APK and Android shows its normal "Update this app?" screen.
 ## Every release
 
 1. In `app/build.gradle.kts` raise both numbers, for example:
-   `versionCode = 3` and `versionName = "1.2.1"`. The `versionName` must be greater than the
+   `versionCode = 4` and `versionName = "1.3.1"`. The `versionName` must be greater than the
    latest published release tag, and the APK's `versionName` must match the release tag; otherwise
    the app will keep offering the same update.
 2. **Build → Generate Signed App Bundle / APK → APK**, choose your key, pick **release**.
    The file is `app/release/app-release.apk`.
 3. On GitHub: **Releases → Draft a new release**.
-    - Tag: `v1.2.1` (must match `versionName`; the leading `v` is optional)
+    - Tag: `v1.3.1` (must match `versionName`; the leading `v` is optional)
     - Attach the APK
     - Optional: write release notes (they are shown in the app's update dialog)
     - **Publish release** (drafts and pre-releases are ignored by the app)
