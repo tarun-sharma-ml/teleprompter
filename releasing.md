@@ -16,12 +16,12 @@ APK and Android shows its normal "Update this app?" screen.
 ## Every release
 
 1. In `app/build.gradle.kts`, increment `versionCode` and set `versionName` to a version greater
-   than the version installed by users, for example `versionCode = 10` and `versionName = "1.5"`.
+   than the version installed by users, for example `versionCode = 11` and `versionName = "1.5.1"`.
    Keep `versionCode` increasing for every APK; Android uses it to reject downgrades.
 2. **Build → Generate Signed App Bundle / APK → APK**, choose your key, pick **release**.
    The file is `app/release/app-release.apk`.
 3. On GitHub: **Releases → Draft a new release**.
-    - Tag: `v1.5` (must match the APK's `versionName`; the leading `v` is optional)
+    - Tag: `v1.5.1` (must match the APK's `versionName`; the leading `v` is optional)
     - Attach the APK
     - Optional: write release notes (they are shown in the app's update dialog)
     - **Publish release** (drafts and pre-releases are ignored by the app)
@@ -38,17 +38,17 @@ on a phone.
 In the recent version clash, the phone reported **1.3**, while the project was changed to **1.2.1**.
 Because `1.2.1` is lower than `1.3`, it cannot update that phone; **v1.2 was skipped for the same
 reason**. The next update for a phone on 1.3 must be higher than 1.3, such as **v1.4**, with a
-higher Android `versionCode`. The project is now set to **v1.5** (`versionCode = 10`).
+higher Android `versionCode`. The project is now set to **v1.5.1** (`versionCode = 11`).
 
 Deleting a release does not roll back installed apps. It removes that release from GitHub's latest
 release lookup, which can make the updater fall back to an older published tag. At the time this
 issue was checked, GitHub's latest-release endpoint returned **v1.1**. A phone already on 1.3 will
-not see an update from v1.1; publish a newer release (for example v1.5) with a matching signed
+not see an update from v1.1; publish a newer release (for example v1.5.1) with a matching signed
 APK instead. Do not delete a release to make an older version install as an update.
 
-Build and sign the v1.5 APK with the same release key, then publish it as **v1.5**.
+Build and sign the v1.5.1 APK with the same release key, then publish it as **v1.5.1**.
 
-### v1.5 release notes
+### v1.5.1 release notes
 
 - Describe the changes included in this release.
 

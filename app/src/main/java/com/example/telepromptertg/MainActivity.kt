@@ -98,23 +98,25 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(24), dp(20), dp(12))
             setBackgroundColor(cBg)
         }
+        val titleView = TextView(this).apply {
+            text = "Teleprompter"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(cText)
+            gravity = Gravity.CENTER
+        }
         root.addView(
-            TextView(this).apply {
-                text = "Teleprompter"
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setTextColor(cText)
-                gravity = Gravity.CENTER
-            },
+            titleView,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
+        val ruleView = View(this).apply {
+            background = GradientDrawable().apply {
+                setColor(cAmber)
+                cornerRadius = dp(2).toFloat()
+            }
+        }
         root.addView(
-            View(this).apply {
-                background = GradientDrawable().apply {
-                    setColor(cAmber)
-                    cornerRadius = dp(2).toFloat()
-                }
-            },
+            ruleView,
             LinearLayout.LayoutParams(dp(120), dp(4)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = dp(12)
@@ -122,11 +124,10 @@ class MainActivity : Activity() {
             },
         )
 
-        val scriptPage = page().apply {
-            addView(label("Read your script while recording videos with your camera app.", 14f, false).apply {
-                setTextColor(cMuted)
-            })
+        val descView = label("Read your script while recording videos with your camera app.", 14f, false).apply {
+            setTextColor(cMuted)
         }
+        val scriptPage = page().apply { addView(descView) }
         scriptEdit = EditText(this).apply {
             hint = "Enter or paste your text / script here..."
             setText(prefs.text)
@@ -260,7 +261,11 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = dp(8) })
         if (savedInstanceState == null) {
-            showStartupAnimation(root)
+            showStartupAnimation(
+                root,
+                ruleView,
+                listOf(titleView to 4300f, descView to 4800f, scriptEdit to 4950f, startBtn to 5100f, nav to 5250f),
+            )
         } else {
             setContentView(root)
         }
@@ -289,45 +294,51 @@ class MainActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun showStartupAnimation(appContent: View) {
+    private fun showStartupAnimation(appContent: View, rule: View, reveals: List<Pair<View, Float>>) {
         val decorView = window.decorView
-        val previousSystemUiVisibility = decorView.systemUiVisibility
-        decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            )
+        val previousUiVisibility = decorView.systemUiVisibility
+        val previousStatusColor = window.statusBarColor
+        val previousNavColor = window.navigationBarColor
+        // Bars stay visible so the layout never shifts when the intro ends. Paint them in the
+        // intro colour (and drop dark icons, which would vanish on it).
+        val introBg = 0xFF1E2327.toInt()
+        window.statusBarColor = introBg
+        window.navigationBarColor = introBg
+        decorView.systemUiVisibility = previousUiVisibility and
+            (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR).inv()
+
+        // The real views start hidden and are revealed by the animation's timeline.
+        rule.alpha = 0f
+        reveals.forEach { (view, _) -> view.alpha = 0f }
 
         val host = FrameLayout(this)
         host.addView(
             appContent,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            ),
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         val intro = FrameLayout(this).apply {
-            setBackgroundColor(Color.rgb(27, 33, 35))
             isClickable = true
             isFocusable = true
         }
         val animationView = StartupAnimationView(this)
+        animationView.targetProvider = {
+            if (rule.width == 0) null else {
+                val a = IntArray(2)
+                val b = IntArray(2)
+                rule.getLocationInWindow(a)
+                animationView.getLocationInWindow(b)
+                val l = (a[0] - b[0]).toFloat()
+                val t = (a[1] - b[1]).toFloat()
+                android.graphics.RectF(l, t, l + rule.width, t + rule.height)
+            }
+        }
         intro.addView(
             animationView,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            ),
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         host.addView(
             intro,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            ),
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         setContentView(host)
 
@@ -337,12 +348,16 @@ class MainActivity : Activity() {
             if (dismissed) return
             dismissed = true
             animator.cancel()
+            rule.alpha = 1f
+            reveals.forEach { (view, _) -> view.alpha = 1f; view.translationY = 0f }
             intro.animate()
                 .alpha(0f)
                 .setDuration(220)
                 .withEndAction {
                     host.removeView(intro)
-                    decorView.systemUiVisibility = previousSystemUiVisibility
+                    window.statusBarColor = previousStatusColor
+                    window.navigationBarColor = previousNavColor
+                    decorView.systemUiVisibility = previousUiVisibility
                 }
                 .start()
         }
@@ -351,7 +366,17 @@ class MainActivity : Activity() {
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 5900
             interpolator = LinearInterpolator()
-            addUpdateListener { animationView.progress = it.animatedValue as Float }
+            addUpdateListener {
+                val p = it.animatedValue as Float
+                animationView.progress = p
+                val time = p * 5900f
+                reveals.forEach { (view, start) ->
+                    val x = ((time - start) / 450f).coerceIn(0f, 1f)
+                    val e = x * x * (3f - 2f * x)
+                    view.alpha = e
+                    view.translationY = (1f - e) * dp(12)
+                }
+            }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     dismiss()

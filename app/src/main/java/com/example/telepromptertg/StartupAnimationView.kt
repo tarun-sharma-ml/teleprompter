@@ -2,6 +2,7 @@ package com.example.telepromptertg
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Path
@@ -17,7 +18,9 @@ class StartupAnimationView(context: Context) : View(context) {
             invalidate()
         }
 
-    private val density = resources.displayMetrics.density
+    /** Returns the real header rule's rect (px, relative to this view); the bar settles onto it. */
+    var targetProvider: (() -> RectF?)? = null
+
     private val backgroundPaint = paint(COLOR_SCREEN)
     private val amberPaint = paint(COLOR_AMBER)
     private val mutedPaint = paint(COLOR_MUTED)
@@ -51,24 +54,26 @@ class StartupAnimationView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(COLOR_SCREEN)
         if (width == 0 || height == 0) return
-        val scale = width / (ART_WIDTH * density)
-        val logicalHeight = height / (scale * density)
-        val top = (logicalHeight - ART_HEIGHT) / 2f
+        val time = progress * DURATION_MS
+        // Dark backdrop fades out while the real screen fades in underneath.
+        val backdrop = 1f - ease((time - 4300f) / 900f)
+        canvas.drawColor(Color.argb((backdrop * 255).toInt(), 0x1E, 0x23, 0x27))
+
+        val unit = width / ART_WIDTH
+        val artTop = (height / unit - ART_HEIGHT) / 2f
         canvas.save()
-        canvas.scale(scale * density, scale * density)
-        canvas.translate(0f, top)
-        drawScreen(canvas, progress * DURATION_MS)
+        canvas.scale(unit, unit)
+        canvas.translate(0f, artTop)
+        drawScreen(canvas, time)
         canvas.restore()
+        drawBar(canvas, time, unit, artTop)
     }
 
     private fun drawScreen(canvas: Canvas, time: Float) {
         drawOpeningMark(canvas, time)
         drawScriptLines(canvas, time)
         drawReadingMarkers(canvas, time)
-        drawSettledHeader(canvas, time)
-        drawAppContent(canvas, time)
     }
 
     private fun drawOpeningMark(canvas: Canvas, time: Float) {
@@ -95,20 +100,28 @@ class StartupAnimationView(context: Context) : View(context) {
             canvas.drawRoundRect(114f - width / 2f, y, 114f + width / 2f, y + 8f, 4f, 4f, whitePaint)
         }
         whitePaint.alpha = 255
+    }
 
-        // Amber bar: slides in (0.6s), drops to the centre line (2200), widens (2800), becomes the header rule (3900).
+    private fun drawBar(canvas: Canvas, time: Float, unit: Float, artTop: Float) {
         val slide = easeOut((time - 60f) / 600f)
         val fadeIn = ((time - 60f) / 400f).coerceIn(0f, 1f)
         val drop = ease((time - 2200f) / 500f)
         val widen = ease((time - 2800f) / 500f)
         val settle = ease((time - 3900f) / 500f)
 
-        val x = lerp(lerp(lerp(-156f, 64f, slide), 39f, widen), 59f, settle)
-        val width = lerp(lerp(100f, 150f, widen), 110f, settle)
-        val y = lerp(lerp(150f, 192f, drop), 60f, settle)
-        val height = lerp(16f, 4f, settle)
+        val x = lerp(lerp(-156f, 64f, slide), 39f, widen)
+        val w = lerp(100f, 150f, widen)
+        val y = lerp(150f, 192f, drop)
+        // Final resting place = the real header rule, so the hand-off is pixel-exact.
+        val end = targetProvider?.invoke()
+            ?: RectF(59f * unit, (60f + artTop) * unit, 169f * unit, (64f + artTop) * unit)
+        val left = lerp(x * unit, end.left, settle)
+        val right = lerp((x + w) * unit, end.right, settle)
+        val top = lerp((y + artTop) * unit, end.top, settle)
+        val bottom = lerp((y + 16f + artTop) * unit, end.bottom, settle)
+        val radius = (bottom - top) / 2f
         amberPaint.alpha = (fadeIn * 255).toInt()
-        canvas.drawRoundRect(x, y, x + width, y + height, height / 2f, height / 2f, amberPaint)
+        canvas.drawRoundRect(left, top, right, bottom, radius, radius, amberPaint)
         amberPaint.alpha = 255
     }
 
@@ -165,77 +178,6 @@ class StartupAnimationView(context: Context) : View(context) {
         }
         canvas.drawPath(rightMarker, amberPaint)
         amberPaint.alpha = 255
-    }
-
-    private fun drawSettledHeader(canvas: Canvas, time: Float) {
-        val settle = ease((time - 3900f) / 500f)
-        if (settle <= 0f) return
-
-        val titleAlpha = ease((time - 4300f) / 450f)
-        if (titleAlpha > 0f) {
-            titlePaint.alpha = (titleAlpha * 255).toInt()
-            drawCentered(canvas, "Teleprompter", 114f, 43f + (1f - titleAlpha) * 8f, titlePaint)
-            titlePaint.alpha = 255
-        }
-    }
-
-    private fun drawAppContent(canvas: Canvas, time: Float) {
-        val reveal = ease((time - 4800f) / 450f)
-        if (reveal <= 0f) return
-
-        descriptionPaint.alpha = (reveal * 255).toInt()
-        val rise = (1f - reveal) * 14f
-        canvas.drawText("Read your script while recording", 16f, 96f + rise, descriptionPaint)
-        canvas.drawText("videos with your camera app.", 16f, 109f + rise, descriptionPaint)
-
-        val editorAlpha = ease((time - 4950f) / 450f)
-        if (editorAlpha > 0f) {
-            outlinePaint.alpha = (editorAlpha * 255).toInt()
-            whitePaint.alpha = (editorAlpha * 20).toInt()
-            canvas.drawRoundRect(RectF(16f, 124f, 212f, 244f), 10f, 10f, whitePaint)
-            whitePaint.alpha = 255
-            canvas.drawRoundRect(RectF(16f, 124f, 212f, 244f), 10f, 10f, outlinePaint)
-            hintPaint.alpha = (editorAlpha * 255).toInt()
-            canvas.drawText("Enter or paste your text / script", 26f, 143f, hintPaint)
-            canvas.drawText("here...", 26f, 154f, hintPaint)
-            hintPaint.alpha = 255
-        }
-        outlinePaint.alpha = 255
-
-        val buttonReveal = ease((time - 5100f) / 450f)
-        if (buttonReveal > 0f) {
-            amberPaint.color = COLOR_GREEN
-            amberPaint.alpha = (buttonReveal * 255).toInt()
-            canvas.drawRoundRect(RectF(16f, 262f, 212f, 302f), 10f, 10f, amberPaint)
-            buttonTextPaint.alpha = (buttonReveal * 255).toInt()
-            val baseline = 287f
-            drawCentered(canvas, "Start Teleprompter", 114f, baseline, buttonTextPaint)
-            amberPaint.color = COLOR_AMBER
-            amberPaint.alpha = 255
-            buttonTextPaint.alpha = 255
-        }
-
-        val navReveal = ease((time - 5250f) / 450f)
-        if (navReveal > 0f) drawNavigation(canvas, navReveal)
-        descriptionPaint.alpha = 255
-    }
-
-    private fun drawNavigation(canvas: Canvas, reveal: Float) {
-        val y = 352f
-        val height = 36f
-        val navPaint = paint(COLOR_WHITE).apply { textSize = sp(9f); alpha = (reveal * 255).toInt() }
-        amberPaint.color = COLOR_GREEN
-        amberPaint.alpha = (reveal * 255).toInt()
-        canvas.drawRoundRect(RectF(12f, y, 76f, y + height), 12f, 12f, amberPaint)
-        buttonTextPaint.textSize = sp(9f)
-        buttonTextPaint.alpha = (reveal * 255).toInt()
-        drawCentered(canvas, "Script", 44f, y + 22f, buttonTextPaint)
-        drawCentered(canvas, "Settings", 114f, y + 22f, navPaint)
-        drawCentered(canvas, "Help", 184f, y + 22f, navPaint)
-        amberPaint.color = COLOR_AMBER
-        amberPaint.alpha = 255
-        buttonTextPaint.textSize = sp(13f)
-        buttonTextPaint.alpha = 255
     }
 
     private fun drawCentered(canvas: Canvas, text: String, x: Float, baseline: Float, paint: Paint) {
